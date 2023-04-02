@@ -1,0 +1,63 @@
+name: Go
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ 'main' ]
+  pull_request:
+    branches: [ 'main' ]
+
+jobs:
+
+  buildtestcover:
+    name: Build, test and cover using Go tools
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          # Version is explicitly escaped as a string due to
+          # https://github.com/actions/setup-go/issues/328.
+          go-version: '1.20'
+
+      - name: Build
+        run: go build -v ./...
+
+      # See https://about.codecov.io/blog/getting-started-with-code-coverage-for-golang/.
+      # Somehow, any file extension of the coverage file will not be present on Windows Server, no clue why.
+      # But this is also why we need to search for the file without extension when publishing the report.
+      - name: Test and cover
+        run: go test -v ./... -race -coverprofile=coverage -covermode=atomic
+
+      - name: Publish coverage report
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          directory: GITHUB_WORKSPACE
+          files: ./coverage
+          fail_ci_if_error: true
+          verbose: true
+
+  lint:
+    name: Run a linter
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          # Version is explicitly escaped as a string due to
+          # https://github.com/actions/setup-go/issues/328.
+          go-version: '1.20'
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+          args: --config ./.github/configs/.golangci.yml -v
+          only-new-issues: false
+          skip-pkg-cache: true
+          skip-build-cache: true
